@@ -10,38 +10,44 @@
 FILE *output = NULL;
 int read_pipe_fd;          
 char ch;
-int readFlag = 1;
+char readFlag = 1;
+char sigquitFlag = 0;
 
 int readReturn;
 
 void signal_handler(int sig){
 	if (sig == SIGQUIT) {
-        printf("\nПотомок 2 получил SIGQUIT и начинает работать\n");
+        printf("Потомок 2 получил SIGQUIT родителя\n");
+        sigquitFlag = 1;
     }
     if (sig == SIGUSR1){
-    	printf("\nПотомок 2 получил SIGUSR1 и продолжает работать\n");
+    	printf("Потомок 2 получил SIGUSR1 и продолжает работать\n");
     	readReturn = read(read_pipe_fd, &ch, 1);
-    	//printf("Потомок 2 read: %d байт\n", readReturn);
     	if(readReturn > 0){
-    		//printf("Потомок 2: %d\n", ch);
-    		if(ch != 10){
-    			printf("Потомок 2: %c\n", ch);
-    			fprintf(output, "%c", ch);
-        		kill(0, SIGUSR2);	
-    		}else{
-    			readFlag = 0;
-    			kill(0, SIGUSR2);
-    		}
+			printf("Потомок 2: %c\n", ch);
+			fprintf(output, "%c", ch);
+			readFlag = 1;		
+    		kill(0, SIGUSR2);
     	}
     	else{
     		readFlag = 0;
-    		printf("Потомок 2: канал пуст\n");
+    		if(sigquitFlag == 0){
+    			printf("Потомок 2: канал пуст, предок не закончил писать\n");
+    			kill(0, SIGUSR1);
+    		}
+    		if(sigquitFlag == 1){
+    			printf("Потомок 2: канал пуст, предок закончил писать\n");
+    			kill(0, SIGUSR2);
+    			printf("Происходит выход из потомка 2\n");
+    			fclose(output);
+    			exit(EXIT_SUCCESS);
+    		}
     	}
 			
     }
 
     if (sig == SIGUSR2){
-    	printf("Потомок 2 получил свой же SIGUSR2\n");	
+    	//printf("Потомок 2 получил свой же SIGUSR2\n");	
     }
 }
 
@@ -55,11 +61,8 @@ int main(int argc, char** argv){
 		signal(SIGUSR1, signal_handler);
 		signal(SIGUSR2, signal_handler);
 
-		while(readFlag)
+		while(readFlag || !sigquitFlag) 
 			pause();
-		fclose(output);
-		printf("Происходит выход из потомка 2\n");
-		exit(EXIT_SUCCESS);
 	}
 	else
 		printf("Недостаточно аргументов для запуска\n");

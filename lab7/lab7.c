@@ -11,7 +11,10 @@
 
 void signal_handler(int sig){
 	if (sig == SIGQUIT) {
-        printf("Родитель получил свой SIGQUIT\n");
+        printf("Родитель получил свой же SIGQUIT\n");
+    }
+    if (sig == SIGPIPE) {
+        printf("Труба еще не открыта на чтение!\n");
     }
 }
 
@@ -23,9 +26,9 @@ int main(int argc, char** argv){
 		pid_t pid_1, pid_2;
 
 	    signal(SIGQUIT, signal_handler);
-		signal(SIGUSR1, signal_handler);
-		signal(SIGUSR2, signal_handler);
-
+		signal(SIGUSR1, SIG_IGN);
+		signal(SIGUSR2, SIG_IGN);
+		signal(SIGPIPE, signal_handler);
 		if (pipe(fd) == -1) {
         	printf("Ошибка создания канала\n");
         	exit(EXIT_FAILURE);
@@ -36,18 +39,19 @@ int main(int argc, char** argv){
     	}
 
     	if (!(pid_1 = fork())) {
-    		//printf("Запускаем потомок1\n");
     		execl("proc1", "proc1", &fd[0], argv[2], NULL);
     	}
     	
-    	if (!(pid_1 = fork())) {
+    	if (!(pid_2 = fork())) {
     		execl("proc2", "proc2", &fd[0], argv[3], NULL);
     	}
-    	sleep(2);
+    	sleep(1);
+    	fcntl(*fd, F_SETFL, O_NONBLOCK);
 
-    	fcntl(*fd, F_SETFL, O_NONBLOCK); 
 
     	while (fgets(buf, BUF_SIZE, input) != NULL) {
+    		sleep(2);
+    		printf("Прочитали: %s", buf);
 	        if (write(fd[1], buf, strlen(buf)) == -1) {
 	           	printf("Ошибка записи в канал\n");
 	            exit(EXIT_FAILURE);
@@ -65,6 +69,7 @@ int main(int argc, char** argv){
     	close(fd[0]);
     	close(fd[1]);
     	fclose(input);
+    	exit(EXIT_SUCCESS);
 	}
 	else
 		printf("Недостаточно аргументов для запуска\n");

@@ -10,40 +10,42 @@
 FILE *output = NULL;
 int read_pipe_fd;          
 char ch;
-int readFlag = 1;
+char readFlag = 1;
 int readReturn;
+char sigquitFlag = 0;
 
 void signal_handler(int sig){
 	if (sig == SIGQUIT) {
-        printf("\nПотомок 1 получил SIGQUIT и начинает работать\n");
-        read(read_pipe_fd, &ch, 1);
-		fputc(ch, output);
-        printf("Потомок 1: %c\n", ch);
-        kill(0, SIGUSR1);	
+        printf("Потомок 1 получил SIGQUIT родителя\n");
+        sigquitFlag = 1;
 
     }
     if (sig == SIGUSR2){
-    	printf("\nПотомок 1 получил SIGUSR2 и продолжает работать\n");
+    	printf("Потомок 1 получил SIGUSR2 и продолжает работать\n");
     	readReturn = read(read_pipe_fd, &ch, 1);
-    	//printf("Потомок 1 read: %d байт\n", readReturn);
     	if(readReturn > 0){
-    		if(ch != 10){
-    			printf("Потомок 1: %c\n", ch);
-    			fprintf(output, "%c", ch);
-	        	kill(0, SIGUSR1);
-        	}else{
-    			readFlag = 0;
-    			kill(0, SIGUSR1);
-        	}
+			printf("Потомок 1: %c\n", ch);
+			fprintf(output, "%c", ch);
+			readFlag = 1;
+        	kill(0, SIGUSR1);
     	}
     	else{
-    		readFlag = 0;
-    		printf("Потомок 1: канал пуст\n");
+    		if(sigquitFlag == 0){
+    			printf("Потомок 1: канал пуст, предок не закончил писать\n");
+    			kill(0, SIGUSR2);
+    		}
+    		if(sigquitFlag == 1){
+    			printf("Потомок 1: канал пуст, предок закончил писать\n");
+    			kill(0, SIGUSR1);
+    			printf("Происходит выход из потомка 1\n");
+    			fclose(output);
+    			exit(EXIT_SUCCESS);
+    		}
     	}
     }
 
     if (sig == SIGUSR1){
-    	printf("Потомок 1 получил свой же SIGUSR1\n");	
+    	//printf("Потомок 1 получил свой же SIGUSR1\n");	
     }
 }
 
@@ -56,11 +58,13 @@ int main(int argc, char** argv){
 		signal(SIGUSR2, signal_handler);
 		output = fopen(argv[2], "a");
 
-		while(readFlag)
+		read(read_pipe_fd, &ch, 1);
+		fputc(ch, output);
+        printf("Потомок 1: %c\n", ch);
+        kill(0, SIGUSR1);
+		
+		while(readFlag || !sigquitFlag)
 			pause();
-		fclose(output);
-		printf("Происходит выход из потомка 1\n");
-		exit(EXIT_SUCCESS);
 
 	}
 	else
