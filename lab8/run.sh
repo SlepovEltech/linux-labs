@@ -1,3 +1,3 @@
-gcc a.c -o prog1
-gcc b.c -o prog2
-gcc c.c -o prog3
+gcc prog1.c -o prog1
+gcc prog2.c -o prog2
+gcc prog3.c -o prog3
